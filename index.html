@@ -278,10 +278,12 @@ create policy "allow all" on app_config for all using (true) with check (true);<
       <div class="form-group" style="margin:0"><label>Supabase Project URL</label><input type="text" id="sb-url" placeholder="https://xxxx.supabase.co" autocomplete="off"></div>
       <div class="form-group" style="margin:0"><label>anon public key</label><input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp..." autocomplete="off"></div>
     </div>
-    <div style="display:flex;gap:var(--s2);flex-wrap:wrap">
+    <div style="display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center">
       <button class="btn btn-primary btn-sm" onclick="sbConnect()"><i class="fa fa-plug"></i> 連線 / 初始化</button>
       <button class="btn btn-ghost btn-sm" onclick="sbLoadAll()"><i class="fa fa-rotate"></i> 重新載入資料</button>
+      <button class="btn btn-ghost btn-sm" onclick="sbClearSaved()" style="color:var(--error)"><i class="fa fa-trash"></i> 清除記住的設定</button>
     </div>
+    <div id="sb-saved-hint" style="display:none;margin-top:var(--s2);font-size:var(--tx-xs);color:var(--success)"><i class="fa fa-circle-check"></i> 已記住連線設定，下次開啟頁面自動連線</div>
     <div id="sb-error" style="display:none;margin-top:var(--s3);padding:var(--s3);background:var(--error-hl);border-radius:var(--r-md);font-size:var(--tx-xs);color:var(--error);line-height:1.8"></div>
   </div>
 
@@ -517,11 +519,13 @@ async function sbConnect(){
   setSbStatus('sb-pending','連線中…'); setSbError('');
   try{
     sb = supabase.createClient(url, key);
-    // test connection
     const { error } = await sb.from('app_config').select('id').limit(1);
     if(error){ throw error; }
+    // 連線成功後儲存到 localStorage
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
     setSbStatus('sb-ok','已連線 ✓');
-    toast('✅ Supabase 連線成功');
+    toast('✅ Supabase 連線成功（已記住設定）');
     await sbLoadConfig();
     await sbLoadAll();
     startRealtime();
@@ -530,6 +534,41 @@ async function sbConnect(){
     setSbError('❌ 連線失敗：'+e.message+'<br><br>請確認：<br>① URL 格式正確（https://xxxx.supabase.co）<br>② anon key 正確<br>③ 已執行初始化 SQL 並建立三個資料表');
     toast('❌ 連線失敗，請確認設定');
   }
+}
+
+async function sbAutoConnect(){
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if(!url || !key) return;
+  // 預先填入欄位
+  const urlEl = document.getElementById('sb-url');
+  const keyEl = document.getElementById('sb-key');
+  if(urlEl) urlEl.value = url;
+  if(keyEl) keyEl.value = key;
+  setSbStatus('sb-pending','自動連線中…');
+  try{
+    sb = supabase.createClient(url, key);
+    const { error } = await sb.from('app_config').select('id').limit(1);
+    if(error){ throw error; }
+    setSbStatus('sb-ok','已連線 ✓');
+    await sbLoadConfig();
+    await sbLoadAll();
+    startRealtime();
+    toast('✅ 已自動重新連線 Supabase');
+  } catch(e){
+    setSbStatus('sb-err','自動連線失敗');
+    setSbError('⚠️ 自動連線失敗，請手動重新輸入 URL 和 anon key 後按「連線」。<br>錯誤：'+e.message);
+    sb=null;
+  }
+}
+
+function sbClearSaved(){
+  localStorage.removeItem('sb_url');
+  localStorage.removeItem('sb_key');
+  const urlEl=document.getElementById('sb-url'); if(urlEl) urlEl.value='';
+  const keyEl=document.getElementById('sb-key'); if(keyEl) keyEl.value='';
+  setSbStatus('sb-pending','未連線');
+  toast('已清除儲存的連線資訊');
 }
 
 async function sbLoadConfig(){
@@ -942,6 +981,13 @@ function copySql(){ navigator.clipboard.writeText(document.getElementById('init-
 (function init(){
   renderAdminSelects();
   renderVisitor();
+  // 自動讀取 localStorage 並重新連線
+  sbAutoConnect();
+  // 顯示是否有儲存的設定提示
+  if(localStorage.getItem('sb_url')){
+    const hint = document.getElementById('sb-saved-hint');
+    if(hint) hint.style.display='block';
+  }
 })();
 </script>
 </body>
