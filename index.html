@@ -214,19 +214,19 @@ input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;bord
   <!-- Supabase Setup -->
   <div class="sb-panel">
     <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s3)">
-      <span style="font-weight:600;font-size:var(--tx-sm)"><i class="fa fa-database"></i> Supabase 連線</span>
-      <span class="sb-status sb-pending" id="sb-status">初始化中…</span>
+      <span style="font-weight:600;font-size:var(--tx-sm)"><i class="fa fa-database"></i> Supabase 連線設定</span>
+      <span class="sb-status sb-pending" id="sb-status">未連線</span>
       <span class="sb-status sb-rt" id="rt-status" style="display:none"><span class="live-dot"></span> Realtime 已啟動</span>
     </div>
     <div style="background:var(--primary-hl);border-radius:var(--r-md);padding:var(--s3);margin-bottom:var(--s3);font-size:var(--tx-xs);line-height:1.9;color:var(--text)">
-      <strong style="color:var(--primary)"><i class="fa fa-circle-info"></i> 設定方式（只需做一次）</strong><br>
-      ① 前往 <a href="https://supabase.com" target="_blank" style="color:var(--primary)">supabase.com</a> 建立免費專案，執行下方初始化 SQL<br>
-      ② 到 <strong>Settings → API</strong> 複製 Project URL 與 anon key<br>
-      ③ 填入下方兩個欄位 → 按「<strong>儲存並連線</strong>」<br>
-      ④ 系統會把設定寫回 HTML 原始碼，之後任何裝置開啟都自動連線 🎉
+      <strong style="color:var(--primary)"><i class="fa fa-circle-info"></i> 首次設定步驟</strong><br>
+      ① 前往 <a href="https://supabase.com" target="_blank" style="color:var(--primary)">supabase.com</a> 建立免費專案<br>
+      ② 進入 <strong>SQL Editor</strong>，執行下方初始化 SQL<br>
+      ③ 到 <strong>Settings → API</strong> 複製 Project URL 與 anon key<br>
+      ④ 填入下方後按「連線」，之後資料全自動即時同步 ✨
     </div>
     <details style="margin-bottom:var(--s3)">
-      <summary style="cursor:pointer;font-size:var(--tx-xs);font-weight:600;color:var(--primary);padding:var(--s2) 0">📋 點此展開初始化 SQL</summary>
+      <summary style="cursor:pointer;font-size:var(--tx-xs);font-weight:600;color:var(--primary);padding:var(--s2) 0">📋 點此展開初始化 SQL（貼到 Supabase SQL Editor 執行）</summary>
       <pre id="init-sql" style="margin-top:var(--s3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s3);font-size:11px;overflow-x:auto;white-space:pre;line-height:1.6;color:var(--text)">-- 1. 選手表
 create table if not exists players (
   id bigint primary key generated always as identity,
@@ -260,11 +260,12 @@ create table if not exists app_config (
 );
 insert into app_config (id) values (1) on conflict do nothing;
 
--- 4. 開啟 Realtime
+-- 4. 開啟 Realtime（在 Supabase Dashboard → Database → Replication 勾選 players 與 matches）
+-- 或執行：
 alter publication supabase_realtime add table players;
 alter publication supabase_realtime add table matches;
 
--- 5. Row Level Security
+-- 5. Row Level Security（設定公開讀、寫需 anon key）
 alter table players enable row level security;
 alter table matches enable row level security;
 alter table app_config enable row level security;
@@ -273,30 +274,19 @@ create policy "allow all" on matches for all using (true) with check (true);
 create policy "allow all" on app_config for all using (true) with check (true);</pre>
       <button class="btn btn-ghost btn-sm" style="margin-top:var(--s2)" onclick="copySql()"><i class="fa fa-copy"></i> 複製 SQL</button>
     </details>
-
-    <!-- 已設定時顯示目前連線資訊 -->
-    <div id="sb-current-info" style="display:none;margin-bottom:var(--s3);padding:var(--s3);background:var(--success-hl);border-radius:var(--r-md);font-size:var(--tx-xs);color:var(--success)">
-      <i class="fa fa-circle-check"></i> 已連線至：<strong id="sb-current-url"></strong>
-    </div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)">
       <div class="form-group" style="margin:0"><label>Supabase Project URL</label><input type="text" id="sb-url" placeholder="https://xxxx.supabase.co" autocomplete="off"></div>
       <div class="form-group" style="margin:0"><label>anon public key</label><input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp..." autocomplete="off"></div>
     </div>
     <div style="display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary btn-sm" onclick="sbSaveAndConnect()"><i class="fa fa-floppy-disk"></i> 儲存並連線</button>
+      <button class="btn btn-primary btn-sm" onclick="sbConnect()"><i class="fa fa-plug"></i> 連線 / 初始化</button>
       <button class="btn btn-ghost btn-sm" onclick="sbLoadAll()"><i class="fa fa-rotate"></i> 重新載入資料</button>
-      <button class="btn btn-ghost btn-sm" onclick="sbClearConfig()" style="color:var(--error)"><i class="fa fa-trash"></i> 清除連線設定</button>
+      <button class="btn btn-ghost btn-sm" onclick="sbClearSaved()" style="color:var(--error)"><i class="fa fa-trash"></i> 清除記住的設定</button>
     </div>
+    <div id="sb-saved-hint" style="display:none;margin-top:var(--s2);font-size:var(--tx-xs);color:var(--success)"><i class="fa fa-circle-check"></i> 已記住連線設定，下次開啟頁面自動連線</div>
     <div id="sb-error" style="display:none;margin-top:var(--s3);padding:var(--s3);background:var(--error-hl);border-radius:var(--r-md);font-size:var(--tx-xs);color:var(--error);line-height:1.8"></div>
-    <div id="bake-hint" style="display:none;margin-top:var(--s3);padding:var(--s4);background:var(--gold-hl);border-radius:var(--r-md);font-size:var(--tx-xs);line-height:1.9;border:1px solid var(--gold)">
-      <strong style="color:var(--gold);font-size:var(--tx-sm)">🎉 連線成功！下一步：讓訪客 / 裁判免設定</strong><br>
-      按下方按鈕下載「已內建連線設定」的 <code style="background:var(--surface);padding:1px 4px;border-radius:3px">index.html</code>，<br>
-      上傳至 GitHub 覆蓋舊版後，<strong>任何人開啟頁面都會自動連線</strong>，不需要再輸入任何設定。<br><br>
-      <button class="btn btn-sm" onclick="downloadBakedHtml()" style="background:var(--gold);color:#fff;font-weight:700"><i class="fa fa-download"></i> 下載已設定版 index.html</button>
-      <span style="margin-left:var(--s3);color:var(--muted)">→ 上傳至 GitHub 即完成</span>
-    </div>
   </div>
+
   <!-- Password Management -->
   <div class="card" style="margin-bottom:var(--s6)">
     <div class="card-header"><span class="card-title"><i class="fa fa-lock"></i> 密碼管理</span><button class="btn btn-ghost btn-sm" onclick="savePwAll()"><i class="fa fa-save"></i> 儲存全部密碼</button></div>
@@ -513,14 +503,6 @@ function updateRoleBadge(){
 // ══════════════════════════════════════════════
 // SUPABASE SETUP
 // ══════════════════════════════════════════════
-// ▼▼▼ 設定完成後這兩行會自動填入，請勿手動修改 ▼▼▼
-const SUPABASE_URL = localStorage.getItem('sb_url') || '';
-const SUPABASE_KEY = localStorage.getItem('sb_key') || '';
-// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-let sb = null;
-let rtChannel = null;
-
 function setSbStatus(cls,txt){
   const el=document.getElementById('sb-status'); if(!el) return;
   el.className='sb-status '+cls; el.textContent=txt;
@@ -529,109 +511,65 @@ function setSbError(msg){
   const el=document.getElementById('sb-error'); if(!el) return;
   if(msg){ el.style.display='block'; el.innerHTML=msg; } else { el.style.display='none'; }
 }
-function showCurrentUrl(url){
-  const info=document.getElementById('sb-current-info');
-  const label=document.getElementById('sb-current-url');
-  if(info&&label){ info.style.display='block'; label.textContent=url; }
-}
 
-async function sbSaveAndConnect(){
+async function sbConnect(){
   const url = document.getElementById('sb-url').value.trim();
   const key = document.getElementById('sb-key').value.trim();
   if(!url||!key){ toast('⚠️ 請填入 Project URL 與 anon key'); return; }
   setSbStatus('sb-pending','連線中…'); setSbError('');
   try{
-    const client = supabase.createClient(url, key);
-    const { error } = await client.from('app_config').select('id').limit(1);
-    if(error) throw error;
+    sb = supabase.createClient(url, key);
+    const { error } = await sb.from('app_config').select('id').limit(1);
+    if(error){ throw error; }
+    // 連線成功後儲存到 localStorage
     localStorage.setItem('sb_url', url);
     localStorage.setItem('sb_key', key);
-    sb = client;
     setSbStatus('sb-ok','已連線 ✓');
-    showCurrentUrl(url);
-    setSbError('');
-    toast('✅ 連線成功');
+    toast('✅ Supabase 連線成功（已記住設定）');
     await sbLoadConfig();
     await sbLoadAll();
     startRealtime();
-    // 顯示「產生已設定版本」的提示
-    showBakeHint(url, key);
   } catch(e){
     setSbStatus('sb-err','連線失敗'); sb=null;
     setSbError('❌ 連線失敗：'+e.message+'<br><br>請確認：<br>① URL 格式正確（https://xxxx.supabase.co）<br>② anon key 正確<br>③ 已執行初始化 SQL 並建立三個資料表');
-    toast('❌ 連線失敗');
+    toast('❌ 連線失敗，請確認設定');
   }
 }
 
-function showBakeHint(url, key){
-  const el = document.getElementById('bake-hint');
-  if(el){ el.style.display='block'; }
-}
-
-function downloadBakedHtml(){
-  const url = localStorage.getItem('sb_url')||'';
-  const key = localStorage.getItem('sb_key')||'';
-  if(!url||!key){ toast('⚠️ 請先連線後再下載'); return; }
-  // Read current page HTML and replace the two placeholder lines
-  const html = document.documentElement.outerHTML;
-  const baked = html
-    .replace(
-      /const SUPABASE_URL = localStorage\.getItem\('sb_url'\) \|\| '';/,
-      "const SUPABASE_URL = '"+url+"';"
-    )
-    .replace(
-      /const SUPABASE_KEY = localStorage\.getItem\('sb_key'\) \|\| '';/,
-      "const SUPABASE_KEY = '"+key+"';"
-    );
-  const blob = new Blob(['<!DOCTYPE html>\n'+baked], {type:'text/html'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'index.html';
-  a.click();
-  toast('✅ 已下載設定版 index.html，請上傳至 GitHub 覆蓋舊版');
-}
-
 async function sbAutoConnect(){
-  // Priority: 1. baked-in constants  2. localStorage
-  const url = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL) 
-              ? SUPABASE_URL 
-              : (localStorage.getItem('sb_url') || '');
-  const key = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY)
-              ? SUPABASE_KEY
-              : (localStorage.getItem('sb_key') || '');
-  if(!url||!key){ setSbStatus('sb-pending','請於後台輸入連線設定'); return; }
-  const urlEl=document.getElementById('sb-url'); if(urlEl) urlEl.value=url;
-  const keyEl=document.getElementById('sb-key'); if(keyEl) keyEl.value=key;
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if(!url || !key) return;
+  // 預先填入欄位
+  const urlEl = document.getElementById('sb-url');
+  const keyEl = document.getElementById('sb-key');
+  if(urlEl) urlEl.value = url;
+  if(keyEl) keyEl.value = key;
   setSbStatus('sb-pending','自動連線中…');
   try{
     sb = supabase.createClient(url, key);
     const { error } = await sb.from('app_config').select('id').limit(1);
-    if(error) throw error;
+    if(error){ throw error; }
     setSbStatus('sb-ok','已連線 ✓');
-    showCurrentUrl(url);
     await sbLoadConfig();
     await sbLoadAll();
     startRealtime();
+    toast('✅ 已自動重新連線 Supabase');
   } catch(e){
-    setSbStatus('sb-err','自動連線失敗'); sb=null;
-    setSbError('⚠️ 自動連線失敗，請重新輸入 URL 與 anon key 後按「儲存並連線」。<br>錯誤：'+e.message);
+    setSbStatus('sb-err','自動連線失敗');
+    setSbError('⚠️ 自動連線失敗，請手動重新輸入 URL 和 anon key 後按「連線」。<br>錯誤：'+e.message);
+    sb=null;
   }
 }
 
-function sbClearConfig(){
-  if(!confirm('確定清除已儲存的 Supabase 連線設定？')) return;
+function sbClearSaved(){
   localStorage.removeItem('sb_url');
   localStorage.removeItem('sb_key');
-  sb=null;
   const urlEl=document.getElementById('sb-url'); if(urlEl) urlEl.value='';
   const keyEl=document.getElementById('sb-key'); if(keyEl) keyEl.value='';
-  const info=document.getElementById('sb-current-info'); if(info) info.style.display='none';
   setSbStatus('sb-pending','未連線');
-  setSbError('');
-  toast('已清除連線設定');
+  toast('已清除儲存的連線資訊');
 }
-
-async function sbConnect(){ await sbSaveAndConnect(); }  // backward compat
 
 async function sbLoadConfig(){
   if(!sb) return;
@@ -1043,7 +981,13 @@ function copySql(){ navigator.clipboard.writeText(document.getElementById('init-
 (function init(){
   renderAdminSelects();
   renderVisitor();
+  // 自動讀取 localStorage 並重新連線
   sbAutoConnect();
+  // 顯示是否有儲存的設定提示
+  if(localStorage.getItem('sb_url')){
+    const hint = document.getElementById('sb-saved-hint');
+    if(hint) hint.style.display='block';
+  }
 })();
 </script>
 </body>
