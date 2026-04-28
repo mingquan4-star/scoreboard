@@ -223,7 +223,7 @@ input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;bord
       ① 前往 <a href="https://supabase.com" target="_blank" style="color:var(--primary)">supabase.com</a> 建立免費專案，執行下方初始化 SQL<br>
       ② 到 <strong>Settings → API</strong> 複製 Project URL 與 anon key<br>
       ③ 填入下方兩個欄位 → 按「<strong>儲存並連線</strong>」<br>
-      ④ 系統會把設定寫回 HTML 原始碼，之後任何裝置開啟都自動連線 🎉
+      ④ 按下「儲存並連線」→ 系統自動產生內嵌版 HTML 供下載，上傳至 GitHub 後任何裝置都免設定自動連線 🎉
     </div>
     <details style="margin-bottom:var(--s3)">
       <summary style="cursor:pointer;font-size:var(--tx-xs);font-weight:600;color:var(--primary);padding:var(--s2) 0">📋 點此展開初始化 SQL</summary>
@@ -297,6 +297,20 @@ create policy "allow all" on app_config for all using (true) with check (true);<
       <span style="margin-left:var(--s3);color:var(--muted)">→ 上傳至 GitHub 即完成</span>
     </div>
   </div>
+  <!-- Embed Download Banner -->
+  <div id="embed-download-banner" style="display:none;background:var(--success-hl);border:1px solid var(--success);border-radius:var(--r-lg);padding:var(--s4);margin-bottom:var(--s4)">
+    <div style="display:flex;align-items:flex-start;gap:var(--s3);flex-wrap:wrap">
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--success);margin-bottom:var(--s1)"><i class="fa fa-circle-check"></i> 連線成功！下載內嵌版 HTML</div>
+        <div style="font-size:var(--tx-xs);color:var(--text);line-height:1.8">
+          下方按鈕可下載已將 Supabase URL 與 anon key <strong>直接寫入</strong>的 <code style="background:var(--surface);padding:1px 4px;border-radius:3px">index.html</code>。<br>
+          將此檔案上傳至 GitHub 取代舊版本後，<strong>任何裝置（訪客、裁判）開啟網頁都會自動連線</strong>，不需要再輸入任何設定。
+        </div>
+      </div>
+      <button id="embed-dl-btn" class="btn btn-success btn-sm" style="flex-shrink:0"><i class="fa fa-download"></i> 下載內嵌版 index.html</button>
+    </div>
+  </div>
+
   <!-- Password Management -->
   <div class="card" style="margin-bottom:var(--s6)">
     <div class="card-header"><span class="card-title"><i class="fa fa-lock"></i> 密碼管理</span><button class="btn btn-ghost btn-sm" onclick="savePwAll()"><i class="fa fa-save"></i> 儲存全部密碼</button></div>
@@ -513,10 +527,12 @@ function updateRoleBadge(){
 // ══════════════════════════════════════════════
 // SUPABASE SETUP
 // ══════════════════════════════════════════════
-// ▼▼▼ 設定完成後這兩行會自動填入，請勿手動修改 ▼▼▼
-const SUPABASE_URL = localStorage.getItem('sb_url') || '';
-const SUPABASE_KEY = localStorage.getItem('sb_key') || '';
-// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+// ════════════════════════════════════════════════
+// ▼▼▼ 請在後台填入後按「儲存並寫入程式碼」▼▼▼
+const SUPABASE_URL = '%%SUPABASE_URL%%';
+const SUPABASE_KEY = '%%SUPABASE_KEY%%';
+// ▲▲▲ 設定完成後任何裝置開啟都自動連線，無需再輸入 ▲▲▲
+// ════════════════════════════════════════════════
 
 let sb = null;
 let rtChannel = null;
@@ -550,12 +566,11 @@ async function sbSaveAndConnect(){
     setSbStatus('sb-ok','已連線 ✓');
     showCurrentUrl(url);
     setSbError('');
-    toast('✅ 連線成功');
     await sbLoadConfig();
     await sbLoadAll();
     startRealtime();
-    // 顯示「產生已設定版本」的提示
-    showBakeHint(url, key);
+    generateEmbedDownload(url, key);
+    toast('✅ 連線成功！請下載內嵌版 HTML 並上傳至 GitHub');
   } catch(e){
     setSbStatus('sb-err','連線失敗'); sb=null;
     setSbError('❌ 連線失敗：'+e.message+'<br><br>請確認：<br>① URL 格式正確（https://xxxx.supabase.co）<br>② anon key 正確<br>③ 已執行初始化 SQL 並建立三個資料表');
@@ -563,33 +578,20 @@ async function sbSaveAndConnect(){
   }
 }
 
-function showBakeHint(url, key){
-  const el = document.getElementById('bake-hint');
-  if(el){ el.style.display='block'; }
+function generateEmbedDownload(url, key){
+  // Get the current HTML source and replace the placeholder constants
+  const raw = document.documentElement.outerHTML;
+  const embedded = raw
+    .replace("'%%SUPABASE_URL%%'", JSON.stringify(url))
+    .replace("'%%SUPABASE_KEY%%'", JSON.stringify(key));
+  const blob = new Blob([embedded], {type:'text/html;charset=utf-8'});
+  const dlUrl = URL.createObjectURL(blob);
+  const banner = document.getElementById('embed-download-banner');
+  const btn = document.getElementById('embed-dl-btn');
+  if(banner) banner.style.display='block';
+  if(btn){ btn.onclick = ()=>{ const a=document.createElement('a'); a.href=dlUrl; a.download='index.html'; a.click(); }; }
 }
 
-function downloadBakedHtml(){
-  const url = localStorage.getItem('sb_url')||'';
-  const key = localStorage.getItem('sb_key')||'';
-  if(!url||!key){ toast('⚠️ 請先連線後再下載'); return; }
-  // Read current page HTML and replace the two placeholder lines
-  const html = document.documentElement.outerHTML;
-  const baked = html
-    .replace(
-      /const SUPABASE_URL = localStorage\.getItem\('sb_url'\) \|\| '';/,
-      "const SUPABASE_URL = '"+url+"';"
-    )
-    .replace(
-      /const SUPABASE_KEY = localStorage\.getItem\('sb_key'\) \|\| '';/,
-      "const SUPABASE_KEY = '"+key+"';"
-    );
-  const blob = new Blob(['<!DOCTYPE html>\n'+baked], {type:'text/html'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'index.html';
-  a.click();
-  toast('✅ 已下載設定版 index.html，請上傳至 GitHub 覆蓋舊版');
-}
 
 async function sbAutoConnect(){
   // Priority: 1. baked-in constants  2. localStorage
